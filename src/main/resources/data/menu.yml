@@ -1,0 +1,7 @@
+options:
+  - title: Scala API
+    url: scala-api/index.html
+    menu_section: intro
+  - title: GraphQL API
+    url: graphql-api/index.html
+    menu_section: intro
