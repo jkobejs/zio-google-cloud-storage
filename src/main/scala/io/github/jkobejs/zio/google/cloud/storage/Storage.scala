@@ -1,14 +1,14 @@
 package io.github.jkobejs.zio.google.cloud.storage
 
 import zio._
-import zio.stream._
+import fs2.Stream
+import fs2.Pipe
 
 trait Storage {
   val storage: Storage.Service[Any]
 }
 
 object Storage {
-
   trait Service[R] {
     def compose(
       cloudApiConfig: CloudApiConfig,
@@ -32,30 +32,27 @@ object Storage {
       source: String,
       destination: String
     ): ZIO[R, StorageError, Unit]
-
     def list(
       cloudApiConfig: CloudApiConfig,
       bucket: String,
       prefix: Option[String]
-    ): ZStream[R, StorageError, StorageObject]
-    def download(cloudApiConfig: CloudApiConfig, bucket: String, path: String): ZStream[R, StorageError, Byte]
+    ): Stream[RIO[R, *], StorageObject]
+    def download(cloudApiConfig: CloudApiConfig, bucket: String, path: String): Stream[RIO[R, *], Byte]
     def simpleUpload(
       cloudApiConfig: CloudApiConfig,
       bucket: String,
-      body: ZStream[R, Throwable, Chunk[Byte]],
       path: String
-    ): ZIO[R, StorageError, StorageObject]
+    ): Pipe[RIO[R, *], Byte, StorageObject]
     def multipartUpload(
       cloudApiConfig: CloudApiConfig,
       bucket: String,
-      storageObject: StorageObject,
-      media: ZStream[R, Throwable, Chunk[Byte]]
-    ): ZIO[R, StorageError, StorageObject]
+      storageObject: StorageObject
+    ): Pipe[RIO[R, *], Byte, StorageObject]
     def resumableUpload(
       cloudApiConfig: CloudApiConfig,
       bucket: String,
       storageObject: StorageObject,
       chunkMultiple: Int = 1
-    ): ZSink[Any, StorageError, Byte, Byte, StorageObject]
+    ): Pipe[RIO[R, *], Byte, StorageObject]
   }
 }

@@ -2,7 +2,8 @@ package io.github.jkobejs.zio.google.cloud.storage.http
 
 import io.github.jkobejs.zio.google.cloud.storage.{ ComposeObject, StorageApiConfig, StorageObject }
 import zio._
-import zio.stream._
+import fs2.Stream
+import fs2.Pipe
 
 trait HttpClient {
   val storageHttpClient: HttpClient.Service[Any]
@@ -28,21 +29,19 @@ object HttpClient {
       bucket: String,
       path: String,
       accessToken: String
-    ): ZStream[R, HttpError, Byte]
+    ): Stream[RIO[R, *], Byte]
     def simpleUploadStorageObject(
       storageApiConfig: StorageApiConfig,
       bucket: String,
       path: String,
-      body: ZStream[R, Throwable, Chunk[Byte]],
       accessToken: String
-    ): ZIO[R, HttpError, StorageObject]
+    ): Pipe[RIO[R, *], Byte, StorageObject]
     def multipartUploadStorageObject(
       storageApiConfig: StorageApiConfig,
       bucket: String,
       storageObject: StorageObject,
-      media: ZStream[R, Throwable, Chunk[Byte]],
       accessToken: String
-    ): ZIO[R, HttpError, StorageObject]
+    ): Pipe[RIO[R, *], Byte, StorageObject]
     def composeStorageObjects(
       storageApiConfig: StorageApiConfig,
       bucket: String,

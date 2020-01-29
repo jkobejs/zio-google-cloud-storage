@@ -1,4 +1,4 @@
-package io.github.jkobejs.zio.google.cloud.storage.integration.storage
+package io.github.jkobejs.zio.google.cloud.storage.integration
 
 import sttp.client.{ Request, Response, SttpBackend }
 import sttp.client.monad.MonadError

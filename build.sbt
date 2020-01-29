@@ -75,28 +75,28 @@ lazy val library =
 
     }
 
-    val http4sBlazeClient    = "org.http4s"                   %% "http4s-blaze-client"                   % Version.http4s
-    val http4sCirce          = "org.http4s"                   %% "http4s-circe"                          % Version.http4s
-    val circeCore            = "io.circe"                     %% "circe-core"                            % Version.circe
-    val circeGeneric         = "io.circe"                     %% "circe-generic"                         % Version.circe
-    val googleOauth4s        = "io.github.jkobejs"            %% "google-oauth4s"                        % Version.googleOauth4s
-    val scalaTest            = "org.scalatest"                %% "scalatest"                             % Version.scalatest
-    val wiremock             = "com.github.tomakehurst"       % "wiremock"                               % Version.wiremock
-    val catsRetryCore        = "com.github.cb372"             %% "cats-retry-core"                       % Version.catsRetry
-    val catsRetryEffect      = "com.github.cb372"             %% "cats-retry-cats-effect"                % Version.catsRetry
-    val zio                  = "dev.zio"                      %% "zio"                                   % Version.zio
-    val zioInteropCats       = "dev.zio"                      %% "zio-interop-cats"                      % Version.zioInteropCats
-    val zioTest              = "dev.zio"                      %% "zio-test"                              % Version.zio
-    val zioTestSbt           = "dev.zio"                      %% "zio-test-sbt"                          % Version.zio
-    val zioMacros            = "dev.zio"                      %% "zio-macros-core"                       % Version.zioMacros
-    val zioMacrosTest        = "dev.zio"                      %% "zio-macros-test"                       % Version.zioMacros
-    val zioGoogleCloudOauth2 = "io.github.jkobejs"            %% "zio-google-cloud-oauth2-http4s"        % Version.zioGoogleCloudOauth2
-    val betterMonadicFor     = "com.olegpy"                   %% "better-monadic-for"                    % Version.betterMonadicFor
-    val sttpZioStreamsClient = "com.softwaremill.sttp.client" %% "async-http-client-backend-zio-streams" % Version.sttpVersion
-    val sttpCore             = "com.softwaremill.sttp.client" %% "core"                                  % Version.sttpVersion
-    val sttpCirce            = "com.softwaremill.sttp.client" %% "circe"                                 % Version.sttpVersion
-    val logbackClassic       = "ch.qos.logback"               % "logback-classic"                        % "1.3.0-alpha5"
-    val scalaLogging         = "com.typesafe.scala-logging"   %% "scala-logging"                         % "3.9.2"
+    val http4sBlazeClient    = "org.http4s"                   %% "http4s-blaze-client"            % Version.http4s
+    val http4sCirce          = "org.http4s"                   %% "http4s-circe"                   % Version.http4s
+    val circeCore            = "io.circe"                     %% "circe-core"                     % Version.circe
+    val circeGeneric         = "io.circe"                     %% "circe-generic"                  % Version.circe
+    val googleOauth4s        = "io.github.jkobejs"            %% "google-oauth4s"                 % Version.googleOauth4s
+    val scalaTest            = "org.scalatest"                %% "scalatest"                      % Version.scalatest
+    val wiremock             = "com.github.tomakehurst"       % "wiremock"                        % Version.wiremock
+    val catsRetryCore        = "com.github.cb372"             %% "cats-retry-core"                % Version.catsRetry
+    val catsRetryEffect      = "com.github.cb372"             %% "cats-retry-cats-effect"         % Version.catsRetry
+    val zio                  = "dev.zio"                      %% "zio"                            % Version.zio
+    val zioInteropCats       = "dev.zio"                      %% "zio-interop-cats"               % Version.zioInteropCats
+    val zioTest              = "dev.zio"                      %% "zio-test"                       % Version.zio
+    val zioTestSbt           = "dev.zio"                      %% "zio-test-sbt"                   % Version.zio
+    val zioMacros            = "dev.zio"                      %% "zio-macros-core"                % Version.zioMacros
+    val zioMacrosTest        = "dev.zio"                      %% "zio-macros-test"                % Version.zioMacros
+    val zioGoogleCloudOauth2 = "io.github.jkobejs"            %% "zio-google-cloud-oauth2-http4s" % Version.zioGoogleCloudOauth2
+    val betterMonadicFor     = "com.olegpy"                   %% "better-monadic-for"             % Version.betterMonadicFor
+    val sttpZioStreamsClient = "com.softwaremill.sttp.client" %% "async-http-client-backend-fs2"  % Version.sttpVersion
+    val sttpCore             = "com.softwaremill.sttp.client" %% "core"                           % Version.sttpVersion
+    val sttpCirce            = "com.softwaremill.sttp.client" %% "circe"                          % Version.sttpVersion
+    val logbackClassic       = "ch.qos.logback"               % "logback-classic"                 % "1.3.0-alpha5"
+    val scalaLogging         = "com.typesafe.scala-logging"   %% "scala-logging"                  % "3.9.2"
 
   }
 
@@ -128,6 +128,8 @@ libraryDependencies ++= Seq(
     )
   case _ => Nil
 })
+
+addCompilerPlugin("org.typelevel" % "kind-projector" % "0.11.0" cross CrossVersion.full)
 
 enablePlugins(MicrositesPlugin, BuildInfoPlugin)
 micrositeTwitterCreator := "@jkobejs"

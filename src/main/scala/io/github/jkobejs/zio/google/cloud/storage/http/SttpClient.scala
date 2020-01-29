@@ -8,12 +8,15 @@ import io.github.jkobejs.zio.google.cloud.storage.{ ComposeObject, StorageApiCon
 import sttp.client._
 import sttp.client.circe._
 import sttp.model.StatusCode
-import zio.{ Chunk, IO, Task, ZIO }
-import zio.stream.{ ZStream }
+import zio.{ IO, Task, ZIO }
 import sttp.model._
+import fs2.Stream
+import fs2.Chunk
+import fs2.Pipe
+import zio.interop.catz._
 
 trait SttpClient extends HttpClient {
-  implicit val sttpBackend: SttpBackend[Task, ZStream[Any, Throwable, ByteBuffer], Nothing]
+  implicit val sttpBackend: SttpBackend[Task, Stream[Task, ByteBuffer], Nothing]
   override val storageHttpClient: HttpClient.Service[Any] = new HttpClient.Service[Any] {
 
     override def listBucket(
@@ -24,7 +27,7 @@ trait SttpClient extends HttpClient {
       nextPageToken: Option[String]
     ): ZIO[Any, HttpError, BucketList] = {
       val uri =
-        uri"https://${storageApiConfig.host}/storage/${storageApiConfig.version}/b/$bucket/o?prefix=$prefix&pageToken=$nextPageToken&maxResult=1"
+        uri"https://${storageApiConfig.host}/storage/${storageApiConfig.version}/b/$bucket/o?prefix=$prefix&pageToken=$nextPageToken"
       basicRequest.auth
         .bearer(accessToken)
         .get(uri)
@@ -69,88 +72,91 @@ trait SttpClient extends HttpClient {
       bucket: String,
       path: String,
       accessToken: String
-    ): ZStream[Any, HttpError, Byte] = {
+    ): Stream[Task, Byte] = {
       val uri = uri"https://${storageApiConfig.host}/storage/${storageApiConfig.version}/b/$bucket/o/$path?alt=media"
 
-      ZStream
-        .fromEffect(
+      Stream
+        .eval(
           basicRequest.auth
             .bearer(accessToken)
             .get(uri)
-            .response(asStream[ZStream[Any, Throwable, ByteBuffer]])
+            .response(asStream[Stream[Task, ByteBuffer]])
             .send()
         )
         .flatMap(
           response =>
             response.body match {
-              case Right(body) => body.mapConcat(_.array())
-              case Left(error) => ZStream.fail(HttpError.HttpRequestError(response.statusText, error))
+              case Right(body) =>
+                body.mapChunks(chunk => chunk.flatMap(Chunk.ByteBuffer.apply))
+              case Left(error) => Stream.eval(Task.fail(HttpError.HttpRequestError(response.statusText, error)))
             }
         )
-        .mapError { case error: HttpError => error }
     }
 
     override def simpleUploadStorageObject(
       storageApiConfig: StorageApiConfig,
       bucket: String,
       path: String,
-      body: ZStream[Any, Throwable, Chunk[Byte]],
       accessToken: String
-    ): ZIO[Any, HttpError, StorageObject] = {
+    ): Pipe[Task, Byte, StorageObject] = body => {
       val uri =
         uri"https://${storageApiConfig.host}/upload/storage/${storageApiConfig.version}/b/$bucket/o?uploadType=media&name=$path"
 
-      basicRequest
-        .streamBody(body.map(chunk => ByteBuffer.wrap(chunk.toArray)))
-        .auth
-        .bearer(accessToken)
-        .contentType("application/octet-stream")
-        .post(uri)
-        .response(asJson[StorageObject])
-        .send()
-        .flatMap(
-          response =>
-            response.body match {
-              case Right(value) => IO.succeed(value)
-              case Left(error)  => IO.fail(HttpError.ResponseParseError(error.getMessage))
-            }
-        )
-        .refineOrDie { case e: HttpError => e }
+      Stream.eval(
+        basicRequest
+          .streamBody(body.chunks.map(chunk => chunk.toByteBuffer))
+          .auth
+          .bearer(accessToken)
+          .contentType("application/octet-stream")
+          .post(uri)
+          .response(asJson[StorageObject])
+          .send()
+          .flatMap(
+            response =>
+              response.body match {
+                case Right(value) => Task.succeed(value)
+                case Left(error)  => Task.fail(HttpError.ResponseParseError(error.getMessage))
+              }
+          )
+      )
     }
 
     override def multipartUploadStorageObject(
       storageApiConfig: StorageApiConfig,
       bucket: String,
       storageObject: StorageObject,
-      media: ZStream[Any, Throwable, Chunk[Byte]],
       accessToken: String
-    ): ZIO[Any, HttpError, StorageObject] = {
+    ): Pipe[Task, Byte, StorageObject] = media => {
       val uri =
         uri"https://${storageApiConfig.host}/upload/storage/${storageApiConfig.version}/b/$bucket/o?uploadType=multipart"
 
-      media.runCollect
-        .flatMap(
-          chunks =>
-            basicRequest.auth
-              .bearer(accessToken)
-              .multipartBody(
-                multipart("metadata", storageObject).contentType(MediaType.ApplicationJson),
-                multipart("media", chunks.map(_.toArray).toArray.flatten).contentType(MediaType.ApplicationOctetStream)
-              )
-              .post(uri)
-              .response(asJson[StorageObject])
-              .send()
-              .flatMap(
-                response =>
-                  response.body match {
-                    case Right(value) => IO.succeed(value)
-                    case Left(error) =>
-                      println(response)
-                      IO.fail(HttpError.ResponseParseError(error.getMessage))
-                  }
-              )
+      Stream
+        .eval(
+          media.compile
+            .to(Chunk)
+            .flatMap(
+              chunk =>
+                basicRequest.auth
+                  .bearer(accessToken)
+                  .streamBody(media.chunks.map(chunk => chunk.toByteBuffer))
+                  .multipartBody(
+                    multipart("metadata", storageObject).contentType(MediaType.ApplicationJson),
+                    multipart("media", chunk.toByteBuffer).contentType(MediaType.ApplicationOctetStream)
+                  )
+                  .post(uri)
+                  .response(asJson[StorageObject])
+                  .send()
+                  .flatMap(
+                    response =>
+                      response.body match {
+                        case Right(value) => IO.succeed(value)
+                        case Left(error) =>
+                          IO.fail(HttpError.ResponseParseError(error.getMessage))
+                      }
+                  )
+            )
         )
-        .refineOrDie { case e: HttpError => e }
+
     }
 
     override def composeStorageObjects(
@@ -269,7 +275,8 @@ trait SttpClient extends HttpClient {
         .header(Header.contentLength(chunk.chunk.size.toLong))
         .header(Header.contentType(MediaType.ApplicationOctetStream))
         .header(
-          Header.notValidated(HeaderNames.ContentRange, s"bytes ${chunk.rangeFrom}-${chunk.rangeTo}/$contentRangeSize")
+          Header
+            .notValidated(HeaderNames.ContentRange, s"bytes ${chunk.rangeFrom}-${chunk.rangeTo - 1}/$contentRangeSize")
         )
         .put(resumableUri)
         .body(chunk.chunk.toArray)
