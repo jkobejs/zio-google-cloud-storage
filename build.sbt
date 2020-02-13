@@ -49,7 +49,9 @@ lazy val http4s = (project in file("http4s"))
     libraryDependencies ++= Seq(
       library.http4sCirce,
       library.http4sBlazeClient,
-      library.zioGoogleCloudOauth2Http4s
+      library.zioGoogleCloudOauth2Http4s,
+      library.odin    % Test,
+      library.odinZio % Test
     )
   )
   .dependsOn(core % "test->test;compile->compile")
@@ -62,7 +64,9 @@ lazy val sttp = (project in file("sttp"))
       library.sttpCirce,
       library.sttpFS2StreamsClient,
       library.zioGoogleCloudOauth2Http4s,
-      library.http4sBlazeClient % Test
+      library.http4sBlazeClient % Test,
+      library.odin              % Test,
+      library.odinZio           % Test
     )
   )
   .dependsOn(core % "test->test;compile->compile")
@@ -187,6 +191,7 @@ lazy val libraryVersion = new {
   val betterMonadicFor     = "0.3.1"
   val sttpVersion          = "2.0.0-RC6"
   val fs2                  = "2.1.0"
+  val odin                 = "0.6.0"
 }
 
 lazy val library =
@@ -208,6 +213,9 @@ lazy val library =
     val sttpCore                   = "com.softwaremill.sttp.client" %% "core"                           % libraryVersion.sttpVersion
     val sttpCirce                  = "com.softwaremill.sttp.client" %% "circe"                          % libraryVersion.sttpVersion
     val fs2Core                    = "co.fs2"                       %% "fs2-core"                       % libraryVersion.fs2
+    val odin                       = "com.github.valskalla"         %% "odin-core"                      % libraryVersion.odin
+    val odinZio                    = "com.github.valskalla"         %% "odin-zio"                       % libraryVersion.odin
+
   }
 
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")

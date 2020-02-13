@@ -25,3 +25,23 @@ a concrete version(i.e `0.0.1`). We aim to keep userland-apis relatively stable,
 internals shift as we find better/more performant abstractions.
 
 We will guarantee compatibility between minor versions (i.e 0.0.1 => 0.0.2) but not major versions (0.0.1 => 0.1.0)
+
+### Roadmap
+
+#### Version 0.0.1
+
+- implement missing object and bucket APIs - [current status](api-implementation-status.md)
+- implement bucket API
+- add support for all fields in domain objects
+- add support for standard query paramaters
+- add support for missing query parameters (API method related)
+- improve error messages
+- implement retries
+- support for encryption
+- don't depend on auth library
+- unit tests
+
+#### Version 0.0.1
+
+- zio streams base API
+- graphQL API

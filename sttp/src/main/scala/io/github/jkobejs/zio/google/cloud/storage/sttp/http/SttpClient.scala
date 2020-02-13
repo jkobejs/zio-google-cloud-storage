@@ -15,6 +15,7 @@ import fs2.Chunk
 import fs2.Pipe
 import zio.interop.catz._
 import io.github.jkobejs.zio.google.cloud.storage.http._
+import io.circe.Decoder
 
 trait SttpClient extends HttpClient {
   implicit val sttpBackend: SttpBackend[Task, Stream[Task, ByteBuffer], Nothing]
@@ -32,14 +33,8 @@ trait SttpClient extends HttpClient {
       basicRequest.auth
         .bearer(accessToken)
         .get(uri)
-        .response(asJson[BucketList])
         .send()
-        .flatMap { response =>
-          response.body match {
-            case Right(bucketList) => IO.succeed(bucketList)
-            case Left(error)       => IO.fail(HttpError.ResponseParseError(error.getMessage))
-          }
-        }
+        .flatMap(decodeOrFail[BucketList])
         .refineOrDie { case e: HttpError => e }
     }
 
@@ -54,17 +49,8 @@ trait SttpClient extends HttpClient {
       basicRequest.auth
         .bearer(accessToken)
         .get(uri)
-        .response(asJson[StorageObject])
         .send()
-        .flatMap { response =>
-          if (response.code == StatusCode.NotFound)
-            IO.none
-          else
-            response.body match {
-              case Right(storageObject) => IO.some(storageObject)
-              case Left(error)          => IO.fail(HttpError.ResponseParseError(error.getMessage))
-            }
-        }
+        .flatMap(decodeOrFailOptional[StorageObject])
         .refineOrDie { case e: HttpError => e }
     }
 
@@ -110,15 +96,8 @@ trait SttpClient extends HttpClient {
           .bearer(accessToken)
           .contentType("application/octet-stream")
           .post(uri)
-          .response(asJson[StorageObject])
           .send()
-          .flatMap(
-            response =>
-              response.body match {
-                case Right(value) => Task.succeed(value)
-                case Left(error)  => Task.fail(HttpError.ResponseParseError(error.getMessage))
-              }
-          )
+          .flatMap(decodeOrFail[StorageObject])
       )
     }
 
@@ -145,16 +124,8 @@ trait SttpClient extends HttpClient {
                     multipart("media", chunk.toByteBuffer).contentType(MediaType.ApplicationOctetStream)
                   )
                   .post(uri)
-                  .response(asJson[StorageObject])
                   .send()
-                  .flatMap(
-                    response =>
-                      response.body match {
-                        case Right(value) => IO.succeed(value)
-                        case Left(error) =>
-                          IO.fail(HttpError.ResponseParseError(error.getMessage))
-                      }
-                  )
+                  .flatMap(decodeOrFail[StorageObject])
             )
         )
 
@@ -173,15 +144,8 @@ trait SttpClient extends HttpClient {
         .bearer(accessToken)
         .body(compose)
         .post(uri)
-        .response(asJson[StorageObject])
         .send()
-        .flatMap(
-          response =>
-            response.body match {
-              case Right(value) => IO.succeed(value)
-              case Left(error)  => IO.fail(HttpError.ResponseParseError(error.getMessage))
-            }
-        )
+        .flatMap(decodeOrFail[StorageObject])
         .refineOrDie { case e: HttpError => e }
     }
 
@@ -202,15 +166,8 @@ trait SttpClient extends HttpClient {
         .bearer(accessToken)
         .body(metadata)
         .post(uri)
-        .response(asJson[StorageObject])
         .send()
-        .flatMap(
-          response =>
-            response.body match {
-              case Right(value) => IO.succeed(value)
-              case Left(error)  => IO.fail(HttpError.ResponseParseError(error.getMessage))
-            }
-        )
+        .flatMap(decodeOrFail[StorageObject])
         .refineOrDie { case e: HttpError => e }
     }
 
@@ -225,16 +182,7 @@ trait SttpClient extends HttpClient {
         .bearer(accessToken)
         .delete(uri)
         .send()
-        .flatMap(
-          response =>
-            if (response.code == StatusCode.NotFound)
-              IO.unit
-            else
-              response.body match {
-                case Right(_)    => IO.unit
-                case Left(error) => IO.fail(HttpError.HttpRequestError(response.statusText, error))
-              }
-        )
+        .flatMap(decodeOrFailForDelete)
         .refineOrDie { case e: HttpError => e }
     }
 
@@ -281,7 +229,6 @@ trait SttpClient extends HttpClient {
         )
         .put(resumableUri)
         .body(chunk.chunk.toArray)
-        // .response(asJson[StorageObject])
         .send()
         .flatMap(
           response =>
@@ -304,5 +251,36 @@ trait SttpClient extends HttpClient {
         }
     }
   }
+
+  private def decodeOrFail[A: Decoder](
+    response: Response[Either[String, String]]
+  ) = {
+    println(response.body)
+    if (response.code == StatusCode.Ok)
+      response.body match {
+        case Right(value) =>
+          IO.fromEither(decode[A](value))
+            .mapError(error => HttpError.ResponseParseError(error.getMessage()))
+        case Left(error) =>
+          IO.fail(HttpError.HttpRequestError(response.statusText, error))
+      }
+    else
+      IO.fail(HttpError.HttpRequestError(response.statusText, response.body.fold(identity, identity)))
+  }
+  private def decodeOrFailOptional[A: Decoder](
+    response: Response[Either[String, String]]
+  ) =
+    if (response.code == StatusCode.NotFound)
+      IO.none
+    else
+      decodeOrFail(response).map(Some.apply)
+
+  private def decodeOrFailForDelete(response: Response[Either[String, String]]) =
+    if (response.code == StatusCode.NotFound)
+      IO.unit
+    else if (response.code == StatusCode.NoContent)
+      IO.unit
+    else
+      decodeOrFail[Unit](response)
 
 }

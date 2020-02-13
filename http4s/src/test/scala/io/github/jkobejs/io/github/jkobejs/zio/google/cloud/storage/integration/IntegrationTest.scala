@@ -8,6 +8,10 @@ import io.github.jkobejs.zio.google.cloud.oauth2.http4s.server2server.authentica
 import io.github.jkobejs.zio.google.cloud.storage.http4s.http.{ Http4sClient => StorageHttp4sClient }
 import org.http4s.client.Client
 import zio.interop.catz._
+import zio.interop.catz.implicits._
+import io.github.jkobejs.io.github.jkobejs.zio.google.cloud.storage.integration.OdinLogger
+import io.odin.consoleLogger
+import io.odin.formatter.Formatter
 
 object IntegrationTest {
   val http4sManaged = ZIO
@@ -20,7 +24,10 @@ object IntegrationTest {
     .map {
       case (client4s) =>
         new DefaultStorage with StorageHttp4sClient with Live {
-          override val client: Client[Task] = client4s
+          override val client: Client[Task] =
+            OdinLogger[Task](logHeaders = true, logBody = true, logger = consoleLogger(formatter = Formatter.colorful))(
+              client4s
+            )
         }
     }
   val http4SIntgrationSuite =

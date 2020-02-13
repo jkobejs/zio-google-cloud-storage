@@ -29,8 +29,9 @@ object IntegrationTest {
     .map {
       case (sttp, client4s) =>
         new DefaultStorage with SttpClient with Live {
-          override implicit val sttpBackend: SttpBackend[Task, fs2.Stream[Task, ByteBuffer], Nothing] = sttp
-          override val client: Client[Task]                                                           = client4s
+          override implicit val sttpBackend: SttpBackend[Task, fs2.Stream[Task, ByteBuffer], Nothing] =
+            new LoggingSttpBackend(sttp)
+          override val client: Client[Task] = client4s
         }
     }
 
